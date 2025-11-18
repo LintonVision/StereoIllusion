@@ -68,18 +68,24 @@ top = (0.5*screenHeight - vertOffset) * clipNear / viewingDist; %Y-axis coordina
 bottom = (-0.5*screenHeight - vertOffset) * clipNear / viewingDist; %Y-axis coordinates for bottom of the near clipping plane
 
 %RIGHT EYE ASYMMETRIC FRUSTRUM
-rightEyeRightFrustrum = (0.5*screenWidth - 0.5*IPD +12) * clipNear / viewingDist;
-rightEyeLeftFrustrum = (-0.5*screenWidth - 0.5*IPD +12) * clipNear / viewingDist;
+rightEyeRightFrustrum = (0.5*screenWidth - 0.5*IPD +13) * clipNear / viewingDist;
+rightEyeLeftFrustrum = (-0.5*screenWidth - 0.5*IPD +13) * clipNear / viewingDist;
 
-rightEyeRightFrustrum2 = (0.5*screenWidth - 0.5*IPD -12) * clipNear / viewingDist;
-rightEyeLeftFrustrum2 = (-0.5*screenWidth - 0.5*IPD -12) * clipNear / viewingDist;
+rightEyeRightFrustrum2 = (0.5*screenWidth - 0.5*IPD) * clipNear / viewingDist;
+rightEyeLeftFrustrum2 = (-0.5*screenWidth - 0.5*IPD) * clipNear / viewingDist;
+
+rightEyeRightFrustrum3 = (0.5*screenWidth - 0.5*IPD -13) * clipNear / viewingDist;
+rightEyeLeftFrustrum3 = (-0.5*screenWidth - 0.5*IPD -13) * clipNear / viewingDist;
 
 %LEFT EYE ASYMMETRIC FRUSTRUM
-leftEyeRightFrustrum = (0.5*screenWidth + 0.5*IPD +12) * clipNear / viewingDist;
-leftEyeLeftFrustrum = (-0.5*screenWidth + 0.5*IPD +12) * clipNear / viewingDist;
+leftEyeRightFrustrum = (0.5*screenWidth + 0.5*IPD +13) * clipNear / viewingDist;
+leftEyeLeftFrustrum = (-0.5*screenWidth + 0.5*IPD +13) * clipNear / viewingDist;
 
-leftEyeRightFrustrum2 = (0.5*screenWidth + 0.5*IPD -12) * clipNear / viewingDist;
-leftEyeLeftFrustrum2 = (-0.5*screenWidth + 0.5*IPD -12) * clipNear / viewingDist;
+leftEyeRightFrustrum2 = (0.5*screenWidth + 0.5*IPD) * clipNear / viewingDist;
+leftEyeLeftFrustrum2 = (-0.5*screenWidth + 0.5*IPD) * clipNear / viewingDist;
+
+leftEyeRightFrustrum3 = (0.5*screenWidth + 0.5*IPD -13) * clipNear / viewingDist;
+leftEyeLeftFrustrum3 = (-0.5*screenWidth + 0.5*IPD -13) * clipNear / viewingDist;
 
 % CAMERA POSITION 
 cameraPosition = [0, 0, viewingDist]; %Place camera virtualDist away from origin
@@ -137,6 +143,10 @@ Dist3AScaling = Dist3A/viewingDist;
 Dist3BScaling = Dist3B/viewingDist; 
 
 %-------------------------------------------------------------------------------
+% STAGE ONE
+%-------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------
 % DEFINE CAMERA IN PHYS FOR LEFT EYE CAMERA
 %-------------------------------------------------------------------------------
 
@@ -164,15 +174,15 @@ Screen('SelectStereoDrawBuffer', win, 1); % <- Buffer 1 shows stimuli left eye
 
 %DRAW FRAME
 glTranslatef(0.5*IPD, 0, viewingDist-Dist2);
-Screen('FillPoly', win, [0 0 0], 1.5*backCircle'*Dist2Scaling);
+Screen('FillPoly', win, [255 255 255], 1.5*backCircle'*Dist2Scaling);
+Screen('FillPoly', win, [0 0 0], 1.5*0.9*backCircle'*Dist2Scaling);
 Screen('DrawDots', win, 1.5*0.95*backDots'*Dist2Scaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*backRing'*Dist2Scaling);
 
 %DRAW FRAME
 glTranslatef(0, 0, Dist2-Dist3B);
-Screen('FillPoly', win, [0 0 0], 1.5*frontCircle'*Dist3BScaling);
+Screen('FillPoly', win, [255 255 255], 1.5*frontCircle'*Dist3BScaling);
+Screen('FillPoly', win, [0 0 0], 1.5*0.8*frontCircle'*Dist3BScaling);
 Screen('DrawDots', win, 1.5*0.95*frontDots'*Dist3BScaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*frontRing'*Dist3BScaling);
 
 glPopMatrix; % Finished with the Left eye
 
@@ -204,20 +214,20 @@ Screen('SelectStereoDrawBuffer', win, 0); % <- Buffer 1 shows stimuli left eye
 
 %DRAW FRAME
 glTranslatef(-0.5*IPD, 0, viewingDist-Dist2);
-Screen('FillPoly', win, [0 0 0], 1.5*backCircle'*Dist2Scaling);
+Screen('FillPoly', win, [255 255 255], 1.5*backCircle'*Dist2Scaling);
+Screen('FillPoly', win, [0 0 0], 1.5*0.9*backCircle'*Dist2Scaling);
 Screen('DrawDots', win, 1.5*0.95*backDots'*Dist2Scaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*backRing'*Dist2Scaling);
 
 %DRAW FRAME
 glTranslatef(0, 0, Dist2-Dist3B);
-Screen('FillPoly', win, [0 0 0], 1.5*frontCircle'*Dist3BScaling);
+Screen('FillPoly', win, [255 255 255], 1.5*frontCircle'*Dist3BScaling);
+Screen('FillPoly', win, [0 0 0], 1.5*0.8*frontCircle'*Dist3BScaling);
 Screen('DrawDots', win, 1.5*0.95*frontDots'*Dist3BScaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*frontRing'*Dist3BScaling);
 
 glPopMatrix; % Finished with the Right eye
 
 %-------------------------------------------------------------------------------
-
+% STAGE TWO
 %-------------------------------------------------------------------------------
 %-------------------------------------------------------------------------------
 % DEFINE CAMERA IN PHYS FOR LEFT EYE CAMERA
@@ -246,16 +256,30 @@ gluLookAt(cameraPosition(1), cameraPosition(2), cameraPosition(3), ... %Specify 
 Screen('SelectStereoDrawBuffer', win, 1); % <- Buffer 1 shows stimuli left eye
 
 %DRAW FRAME
-glTranslatef(0.5*IPD, 0, viewingDist-Dist2);
-Screen('FillPoly', win, [0 0 0], 1.5*backCircle'*Dist2Scaling);
-Screen('DrawDots', win, 1.5*0.95*backDots'*Dist2Scaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*backRing'*Dist2Scaling);
+glTranslatef(0.5*IPD, 50/40*2*5, -10);
+Screen('FillPoly', win, [255 255 255], 0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 0.1*backCircle');
 
-%DRAW FRAME
-glTranslatef(0, 0, Dist2-Dist3A);
-Screen('FillPoly', win, [0 0 0], 1.5*frontCircle'*Dist3AScaling);
-Screen('DrawDots', win, 1.5*0.95*frontDots'*Dist3AScaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*frontRing'*Dist3AScaling);
+glTranslatef(0, 5-50/40*2*5, 10);
+Screen('FillPoly', win, [255 255 255], 40/50*0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 40/50*0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 40/50*0.1*backCircle');
+
+glTranslatef(0, -5, 10);
+Screen('FillPoly', win, [255 255 255], 30/50*0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 30/50*0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 30/50*0.1*backCircle');
+
+glTranslatef(0, -5, -10);
+Screen('FillPoly', win, [255 255 255], 40/50*0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 40/50*0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 40/50*0.1*backCircle');
+
+glTranslatef(0, 5-50/40*2*5, -10);
+Screen('FillPoly', win, [255 255 255], 0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 0.1*backCircle');
 
 glPopMatrix; % Finished with the Left eye
 
@@ -286,16 +310,113 @@ gluLookAt(cameraPosition(1), cameraPosition(2), cameraPosition(3), ... %Specify 
 Screen('SelectStereoDrawBuffer', win, 0); % <- Buffer 1 shows stimuli left eye
 
 %DRAW FRAME
-glTranslatef(-0.5*IPD, 0, viewingDist-Dist2);
-Screen('FillPoly', win, [0 0 0], 1.5*backCircle'*Dist2Scaling);
-Screen('DrawDots', win, 1.5*0.95*backDots'*Dist2Scaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*backRing'*Dist2Scaling);
+glTranslatef(-0.5*IPD, 50/40*2*5, -10);
+Screen('FillPoly', win, [255 255 255], 0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 0.1*backCircle');
+
+glTranslatef(0, 5-50/40*2*5, 10);
+Screen('FillPoly', win, [255 255 255], 40/50*0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 40/50*0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 40/50*0.1*backCircle');
+
+glTranslatef(0, -5, 10);
+Screen('FillPoly', win, [255 255 255], 30/50*0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 30/50*0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 30/50*0.1*backCircle');
+
+glTranslatef(0, -5, -10);
+Screen('FillPoly', win, [255 255 255], 40/50*0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 40/50*0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 40/50*0.1*backCircle');
+
+glTranslatef(0, 5-50/40*2*5, -10);
+Screen('FillPoly', win, [255 255 255], 0.4*backCircle');
+Screen('FillPoly', win, [0 0 0], 0.4*0.6*backCircle');
+Screen('FillPoly', win, [255 255 255], 0.1*backCircle');
+
+glPopMatrix; % Finished with the Right eye
+
+%-------------------------------------------------------------------------------
+% STAGE THREE
+%-------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+% DEFINE CAMERA IN PHYS FOR LEFT EYE CAMERA
+%-------------------------------------------------------------------------------
+
+glPushMatrix; %Duplicate the existing matrix, because we're going to amend it
+
+glMatrixMode(GL.PROJECTION); glLoadIdentity; %Tell OpenGL we're going to define Projection Matrix 
+
+glFrustum(leftEyeLeftFrustrum3, leftEyeRightFrustrum3, bottom, top, clipNear, clipFar); %Specify asymmetric viewing frustum for left eye 
+
+%---------------------------------------------------------------------------------------------------------------
+% DEFINE CAMERA POSITION IN SCENE FOR LEFT EYE CAMERA
+%---------------------------------------------------------------------------------------------------------------
+
+glMatrixMode(GL.MODELVIEW); glLoadIdentity; %Tell OpenGL we're going to define Projection Matrix 
+
+gluLookAt(cameraPosition(1), cameraPosition(2), cameraPosition(3), ... %Specify camera Position 
+        cameraFixation(1), cameraFixation(2), cameraFixation(3), ... %Direction
+        cameraOrientation(1), cameraOrientation(2), cameraOrientation(3)); %And Orientation 
+
+%-------------------------------------------------------------------------------
+% DRAW STIMULI ON LEFT EYE BUFFER
+%-------------------------------------------------------------------------------
+
+Screen('SelectStereoDrawBuffer', win, 1); % <- Buffer 1 shows stimuli left eye
 
 %DRAW FRAME
-glTranslatef(0, 0, Dist2-Dist3A);
-Screen('FillPoly', win, [0 0 0], 1.5*frontCircle'*Dist3AScaling);
-Screen('DrawDots', win, 1.5*0.95*frontDots'*Dist3AScaling, 3, [255 255 255]);
-Screen('FillPoly', win, [0 0 0], 1.5*frontRing'*Dist3AScaling);
+glTranslatef(0.5*IPD, 0, viewingDist-Dist2);
+Screen('FillPoly', win, [255 255 255], 1.5*backCircle');
+Screen('FillPoly', win, [0 0 0], 1.5*0.9*backCircle');
+Screen('DrawDots', win, 1.5*0.95*backDots', 3, [255 255 255]);
+
+%DRAW FRAME
+glTranslatef(0, 0, Dist2-Dist3B);
+Screen('FillPoly', win, [255 255 255], 1.5*frontCircle'*30/40);
+Screen('FillPoly', win, [0 0 0], 1.5*0.8*frontCircle'*30/40);
+Screen('DrawDots', win, 1.5*0.95*frontDots'*30/40, 3, [255 255 255]);
+
+glPopMatrix; % Finished with the Left eye
+
+%-------------------------------------------------------------------------------
+% DEFINE CAMERA IN PHYS FOR RIGHT EYE CAMERA
+%-------------------------------------------------------------------------------
+
+glPushMatrix; %Duplicate the existing matrix, because we're going to amend it
+
+glMatrixMode(GL.PROJECTION); glLoadIdentity; %Tell OpenGL we're going to define Projection Matrix 
+
+glFrustum(rightEyeLeftFrustrum3, rightEyeRightFrustrum3, bottom, top, clipNear, clipFar); %Specify asymmetric viewing frustum for right eye 
+
+%---------------------------------------------------------------------------------------------------------------
+% DEFINE CAMERA POSITION IN SCENE FOR RIGHT EYE CAMERA
+%---------------------------------------------------------------------------------------------------------------
+
+glMatrixMode(GL.MODELVIEW); glLoadIdentity; %Tell OpenGL we're going to define Projection Matrix 
+
+gluLookAt(cameraPosition(1), cameraPosition(2), cameraPosition(3), ... %Specify camera Position 
+        cameraFixation(1), cameraFixation(2), cameraFixation(3), ... %Direction
+        cameraOrientation(1), cameraOrientation(2), cameraOrientation(3)); %And Orientation 
+
+%-------------------------------------------------------------------------------
+% DRAW STIMULI ON RIGHT EYE BUFFER
+%-------------------------------------------------------------------------------
+
+Screen('SelectStereoDrawBuffer', win, 0); % <- Buffer 1 shows stimuli left eye
+
+%DRAW FRAME
+glTranslatef(-0.5*IPD, 0, viewingDist-Dist2);
+Screen('FillPoly', win, [255 255 255], 1.5*backCircle');
+Screen('FillPoly', win, [0 0 0], 1.5*0.9*backCircle');
+Screen('DrawDots', win, 1.5*0.95*backDots', 3, [255 255 255]);
+
+%DRAW FRAME
+glTranslatef(0, 0, Dist2-Dist3B);
+Screen('FillPoly', win, [255 255 255], 1.5*frontCircle'*30/40);
+Screen('FillPoly', win, [0 0 0], 1.5*0.8*frontCircle'*30/40);
+Screen('DrawDots', win, 1.5*0.95*frontDots'*30/40, 3, [255 255 255]);
 
 glPopMatrix; % Finished with the Right eye
 
@@ -312,9 +433,8 @@ Screen('Flip', win);
 [keyIsDown, ~, keyCode] = KbCheck(-1); %Record various components of KbCheck
 
 if keyIsDown == 1
-      
-      break 
-
+  
+    break
  %
 end
 end
