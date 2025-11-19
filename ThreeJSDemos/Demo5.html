@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Two Circles Fixed at 40cm</title>
+  <style>
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+  </style>
+</head>
+<body>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+    // ========================================
+    // MAIN PARAMETERS - ADJUST THESE
+    // ========================================
+    
+    // Viewing geometry
+    const IPD_CM = 6.4;  // Interpupillary distance (distance between left and right cameras)
+    const VIEW_DIST_CM = 40;  // Distance from eyes to screen
+    
+    // Front circles fixed at 40cm (no animation)
+    const FRONT_DIST_CM = 40.0;  // Fixed distance for both front circles
+    
+    // Animation parameters
+    const ANIMATION_FREQ_HZ = 2.0;  // 2Hz oscillation
+    const HORZ_DIST_MIN = 40.0;     // Horizontal dots oscillate between 40cm and 50cm
+    const HORZ_DIST_MAX = 50.0;
+    const VERT_DIST_MIN = 30.0;     // Vertical dots oscillate between 30cm and 40cm
+    const VERT_DIST_MAX = 40.0;
+    
+    // ========================================
+    // DERIVED PARAMETERS (calculated from above)
+    // ========================================
+    
+    const SHIFT_L = -IPD_CM / 2;
+    const SHIFT_R = +IPD_CM / 2;
+
+    const SCREEN_SHIFT_CM = 3.0;
+    const SCREEN_SHIFT_CM_RIGHT = -3.0;
+
+    // Left stimulus parameters
+    const LEFT_SMALL_R_BASE = 3.0;
+    const LEFT_REF_FRONT_DIST = 40.0;
+
+    // Right stimulus parameters
+    const RIGHT_SMALL_R_BASE = 3.0;
+    const RIGHT_REF_FRONT_DIST = 40.0;
+
+    const BORDER_SCREEN_PX = 10;
+    const DOT_SIZE_CM      = 0.4;  // 0.4cm wide dots
+    const RHO_DOTS         = 66;
+
+    function cssPPI(){
+      const d=document.createElement('div'); d.style.width='1in'; d.style.position='absolute'; d.style.visibility='hidden';
+      document.body.appendChild(d); const p=d.offsetWidth||96; d.remove(); return p;
+    }
+    function estimateCanvasCM(){
+      const ppi = cssPPI();
+      const pxW = window.innerWidth, pxH = window.innerHeight;
+      const inW = pxW/ppi, inH = pxH/ppi; const CM = 2.54;
+      return { w: inW*CM, h: inH*CM, pxW, pxH, ppi, cmPerPx: (1/ppi)*2.54 };
+    }
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+
+    // Create two separate scenes
+    const sceneLeft = new THREE.Scene();
+    const sceneRight = new THREE.Scene();
+
+    function makeDotTexture(size=64){
+      const c=document.createElement('canvas'); c.width=c.height=size; const g=c.getContext('2d');
+      g.clearRect(0,0,size,size);
+      const cx=size/2, cy=size/2, r=size*0.45;
+      // Solid white circle instead of gradient
+      g.fillStyle='rgba(255,255,255,1)';
+      g.beginPath(); 
+      g.arc(cx,cy,r,0,Math.PI*2); 
+      g.fill();
+      const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+      return t;
+    }
+    const dotTexture = makeDotTexture();
+
+    function buildCircleUnit(dotSizePxHorizontal, dotSizePxVertical){
+      const grp = new THREE.Group();
+      const ringGeo = new THREE.RingGeometry(0.9, 1.0, 256, 1);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.renderOrder = 2;
+      grp.add(ring);
+
+      // Horizontal dots (left/right) - will be positioned at 50cm - return separately
+      const crossRadius = 1.3/3.0;
+      const posHorizontal = new Float32Array(2 * 3);
+      // Right
+      posHorizontal[0] = crossRadius; posHorizontal[1] = 0; posHorizontal[2] = 0;
+      // Left
+      posHorizontal[3] = -crossRadius; posHorizontal[4] = 0; posHorizontal[5] = 0;
+      
+      const gHorizontal = new THREE.BufferGeometry();
+      gHorizontal.setAttribute('position', new THREE.BufferAttribute(posHorizontal, 3));
+      const pmHorizontal = new THREE.PointsMaterial({
+        map: dotTexture,
+        size: dotSizePxHorizontal,
+        sizeAttenuation: false,
+        transparent: true,
+        depthWrite: false,
+        color: 0xffffff
+      });
+      const dotsHorizontal = new THREE.Points(gHorizontal, pmHorizontal);
+      dotsHorizontal.renderOrder = 1;
+
+      // Vertical dots (top/bottom) at reference distance (40cm)
+      const posVertical = new Float32Array(2 * 3);
+      // Top
+      posVertical[0] = 0; posVertical[1] = crossRadius; posVertical[2] = 0;
+      // Bottom
+      posVertical[3] = 0; posVertical[4] = -crossRadius; posVertical[5] = 0;
+      
+      const gVertical = new THREE.BufferGeometry();
+      gVertical.setAttribute('position', new THREE.BufferAttribute(posVertical, 3));
+      const pmVertical = new THREE.PointsMaterial({
+        map: dotTexture,
+        size: dotSizePxVertical,
+        sizeAttenuation: false,
+        transparent: true,
+        depthWrite: false,
+        color: 0xffffff
+      });
+      const dotsVertical = new THREE.Points(gVertical, pmVertical);
+      dotsVertical.renderOrder = 3;
+      grp.add(dotsVertical);
+
+      grp.userData = { ring, dotsVertical, lastOuter: -1, lastInner: -1 };
+      return { grp, dotsHorizontal, pmHorizontal, pmVertical };
+    }
+
+    let spec = estimateCanvasCM();
+    function computeFOV(){ return 2*Math.atan((spec.h/2)/VIEW_DIST_CM)*180/Math.PI; }
+    
+    // Create all four cameras
+    const camL = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camR = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camL2 = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camR2 = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    
+    function setPoseAndFrustum(cam, eyeXcm, screenShift){
+      cam.position.set(eyeXcm, 0, VIEW_DIST_CM);
+      const n=cam.near, f=cam.far;
+      const halfW = spec.w*0.5, halfH = spec.h*0.5;
+      const top = (+halfH) * (n/VIEW_DIST_CM);
+      const bottom = (-halfH) * (n/VIEW_DIST_CM);
+      const left  = (-halfW - eyeXcm + screenShift) * (n/VIEW_DIST_CM);
+      const right = ( +halfW - eyeXcm + screenShift) * (n/VIEW_DIST_CM);
+      const m=new THREE.Matrix4();
+      const x = 2*n/(right-left), y=2*n/(top-bottom);
+      const a = (right+left)/(right-left), b=(top+bottom)/(top-bottom);
+      const c = -(f+n)/(f-n), d = -2*f*n/(f-n);
+      m.set(x,0,a,0,  0,y,b,0,  0,0,c,d,  0,0,-1,0);
+      cam.projectionMatrix.copy(m);
+      cam.projectionMatrixInverse.copy(m).invert();
+      cam.updateMatrixWorld(true);
+    }
+    
+    // Set up all four cameras
+    setPoseAndFrustum(camL, SHIFT_L, SCREEN_SHIFT_CM);
+    setPoseAndFrustum(camR, SHIFT_R, SCREEN_SHIFT_CM);
+    setPoseAndFrustum(camL2, SHIFT_L, SCREEN_SHIFT_CM_RIGHT);
+    setPoseAndFrustum(camR2, SHIFT_R, SCREEN_SHIFT_CM_RIGHT);
+
+    const borderScreenCm = spec.cmPerPx * BORDER_SCREEN_PX;
+    const dotSizePx40cm = DOT_SIZE_CM / spec.cmPerPx;  // Dot size at 40cm
+    const dotSizePx50cm = (DOT_SIZE_CM * (VIEW_DIST_CM / 50.0)) / spec.cmPerPx;  // Dot size at 50cm (scaled by distance ratio)
+    
+    // Left stimulus circle (only front, fixed at 40cm)
+    const leftInnerSmallBase = Math.max(0, LEFT_SMALL_R_BASE - borderScreenCm * (LEFT_REF_FRONT_DIST/VIEW_DIST_CM));
+    
+    const leftCircle = buildCircleUnit(dotSizePx50cm, dotSizePx40cm);
+    const leftSmall = leftCircle.grp;
+    const leftHorizontalDots = leftCircle.dotsHorizontal;
+    const leftPmHorizontal = leftCircle.pmHorizontal;
+    const leftPmVertical = leftCircle.pmVertical;
+    sceneLeft.add(leftSmall);
+    sceneLeft.add(leftHorizontalDots);
+
+    // Right stimulus circle (only front, fixed at 40cm)
+    const rightInnerSmallBase = Math.max(0, RIGHT_SMALL_R_BASE - borderScreenCm * (RIGHT_REF_FRONT_DIST/VIEW_DIST_CM));
+    
+    const rightCircle = buildCircleUnit(dotSizePx50cm, dotSizePx40cm);
+    const rightSmall = rightCircle.grp;
+    const rightHorizontalDots = rightCircle.dotsHorizontal;
+    const rightPmHorizontal = rightCircle.pmHorizontal;
+    const rightPmVertical = rightCircle.pmVertical;
+    sceneRight.add(rightSmall);
+    sceneRight.add(rightHorizontalDots);
+
+    const BORDER_ALPHA_RAD = 2 * Math.atan( (borderScreenCm*0.5) / VIEW_DIST_CM );
+
+    function updateRing(grp, outerR, innerR){
+      const eps = 1e-3;
+      if (Math.abs(outerR - grp.userData.lastOuter) < eps && Math.abs(innerR - grp.userData.lastInner) < eps) return;
+      grp.userData.lastOuter = outerR; grp.userData.lastInner = innerR;
+
+      grp.remove(grp.userData.ring);
+      grp.userData.ring.geometry.dispose();
+
+      const ringGeo = new THREE.RingGeometry(innerR, outerR, 384, 1);
+      const ring = new THREE.Mesh(ringGeo, grp.userData.ring.material);
+      ring.renderOrder = 2;
+      grp.userData.ring = ring; 
+      grp.add(ring);
+    }
+
+    function makeRT(){
+      const s=new THREE.Vector2(); renderer.getDrawingBufferSize(s);
+      return new THREE.WebGLRenderTarget(s.x, s.y, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat });
+    }
+    
+    // Create render targets for all four cameras
+    let rtL = makeRT(), rtR = makeRT(), rtL2 = makeRT(), rtR2 = makeRT();
+    
+    const fsScene = new THREE.Scene();
+    const fsCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+    const fsMat = new THREE.ShaderMaterial({
+      uniforms:{
+        texL:{value:rtL.texture}, 
+        texR:{value:rtR.texture},
+        texL2:{value:rtL2.texture},
+        texR2:{value:rtR2.texture}
+      },
+      vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+      fragmentShader:`precision highp float; varying vec2 vUv; 
+        uniform sampler2D texL, texR, texL2, texR2;
+        void main(){ 
+          vec3 L=texture2D(texL,vUv).rgb; 
+          vec3 R=texture2D(texR,vUv).rgb;
+          vec3 L2=texture2D(texL2,vUv).rgb;
+          vec3 R2=texture2D(texR2,vUv).rgb;
+          // Combine first pair (left stimulus, left shifted) in red-cyan
+          vec3 col1=vec3(L.r,0.0,R.b);
+          // Combine second pair (right stimulus, right shifted) in red-cyan
+          vec3 col2=vec3(L2.r,0.0,R2.b);
+          // Add both stereo pairs
+          vec3 col = (col1 + col2);
+          gl_FragColor=vec4(col,1.0); 
+        }`,
+      depthTest:false, depthWrite:false
+    });
+    fsScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), fsMat));
+
+    function distToZ(d){ return VIEW_DIST_CM - d; }
+
+    // Set circles to fixed position at 40cm
+    const frontDist = FRONT_DIST_CM;
+    
+    // LEFT STIMULUS
+    leftSmall.position.z = distToZ(frontDist);
+    const leftOuterR_small = LEFT_SMALL_R_BASE * (frontDist/LEFT_REF_FRONT_DIST);
+    const leftBorder_small = 2 * frontDist * Math.tan(BORDER_ALPHA_RAD/2);
+    const leftInnerR_small = Math.max(0, leftOuterR_small - leftBorder_small);
+    updateRing(leftSmall, leftOuterR_small, leftInnerR_small);
+    leftSmall.userData.dotsVertical.scale.set(leftOuterR_small, leftOuterR_small, 1);
+    // Position and scale horizontal dots at 50cm
+    leftHorizontalDots.position.z = distToZ(50);
+    leftHorizontalDots.scale.set(leftOuterR_small, leftOuterR_small, 1);
+
+    // RIGHT STIMULUS
+    rightSmall.position.z = distToZ(frontDist);
+    const rightOuterR_small = RIGHT_SMALL_R_BASE * (frontDist/RIGHT_REF_FRONT_DIST);
+    const rightBorder_small = 2 * frontDist * Math.tan(BORDER_ALPHA_RAD/2);
+    const rightInnerR_small = Math.max(0, rightOuterR_small - rightBorder_small);
+    updateRing(rightSmall, rightOuterR_small, rightInnerR_small);
+    rightSmall.userData.dotsVertical.scale.set(rightOuterR_small, rightOuterR_small, 1);
+    // Position and scale horizontal dots at 50cm
+    rightHorizontalDots.position.z = distToZ(50);
+    rightHorizontalDots.scale.set(rightOuterR_small, rightOuterR_small, 1);
+
+    function animate(){
+      requestAnimationFrame(animate);
+
+      // Calculate sinusoidal oscillation (2Hz)
+      const time = performance.now() / 1000;  // Time in seconds
+      const phase = Math.sin(2 * Math.PI * ANIMATION_FREQ_HZ * time);
+      
+      // Horizontal dots: oscillate between 40cm and 50cm
+      const horzDist = HORZ_DIST_MIN + (HORZ_DIST_MAX - HORZ_DIST_MIN) * (phase + 1) / 2;
+      const horzDotSize = (DOT_SIZE_CM * (VIEW_DIST_CM / horzDist)) / spec.cmPerPx;
+      
+      // Vertical dots: oscillate between 30cm and 40cm
+      const vertDist = VERT_DIST_MIN + (VERT_DIST_MAX - VERT_DIST_MIN) * (phase + 1) / 2;
+      const vertDotSize = (DOT_SIZE_CM * (VIEW_DIST_CM / vertDist)) / spec.cmPerPx;
+      
+      // Update left horizontal dots
+      leftHorizontalDots.position.z = distToZ(horzDist);
+      leftPmHorizontal.size = horzDotSize;
+      
+      // Update left vertical dots
+      leftSmall.userData.dotsVertical.position.z = distToZ(vertDist) - distToZ(frontDist);
+      leftPmVertical.size = vertDotSize;
+      
+      // Update right horizontal dots
+      rightHorizontalDots.position.z = distToZ(horzDist);
+      rightPmHorizontal.size = horzDotSize;
+      
+      // Update right vertical dots
+      rightSmall.userData.dotsVertical.position.z = distToZ(vertDist) - distToZ(frontDist);
+      rightPmVertical.size = vertDotSize;
+
+      // Render left stimulus from first stereo pair
+      renderer.setRenderTarget(rtL); renderer.render(sceneLeft, camL);
+      renderer.setRenderTarget(rtR); renderer.render(sceneLeft, camR);
+      
+      // Render right stimulus from second stereo pair
+      renderer.setRenderTarget(rtL2); renderer.render(sceneRight, camL2);
+      renderer.setRenderTarget(rtR2); renderer.render(sceneRight, camR2);
+      
+      renderer.setRenderTarget(null); renderer.render(fsScene, fsCam);
+    }
+    animate();
+
+    window.addEventListener('resize', ()=>{
+      spec = estimateCanvasCM();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      
+      // Update all four cameras
+      camL.fov=computeFOV(); camL.aspect=spec.w/spec.h; camL.updateProjectionMatrix();
+      camR.fov=computeFOV(); camR.aspect=spec.w/spec.h; camR.updateProjectionMatrix();
+      camL2.fov=computeFOV(); camL2.aspect=spec.w/spec.h; camL2.updateProjectionMatrix();
+      camR2.fov=computeFOV(); camR2.aspect=spec.w/spec.h; camR2.updateProjectionMatrix();
+      
+      setPoseAndFrustum(camL, SHIFT_L, SCREEN_SHIFT_CM);
+      setPoseAndFrustum(camR, SHIFT_R, SCREEN_SHIFT_CM);
+      setPoseAndFrustum(camL2, SHIFT_L, SCREEN_SHIFT_CM_RIGHT);
+      setPoseAndFrustum(camR2, SHIFT_R, SCREEN_SHIFT_CM_RIGHT);
+      
+      // Dispose and recreate all render targets
+      rtL.dispose(); rtR.dispose(); rtL2.dispose(); rtR2.dispose();
+      rtL = makeRT(); rtR = makeRT(); rtL2 = makeRT(); rtR2 = makeRT();
+      
+      fsMat.uniforms.texL.value = rtL.texture; 
+      fsMat.uniforms.texR.value = rtR.texture;
+      fsMat.uniforms.texL2.value = rtL2.texture;
+      fsMat.uniforms.texR2.value = rtR2.texture;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Two Circles • Four Cameras - Separate Stimuli</title>
+  <style>
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+  </style>
+</head>
+<body>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+    // ========================================
+    // MAIN PARAMETERS - ADJUST THESE
+    // ========================================
+    
+    // Viewing geometry
+    const IPD_CM = 6.4;  // Interpupillary distance (distance between left and right cameras)
+    const VIEW_DIST_CM = 40;  // Distance from eyes to screen
+    const FREQ_HZ = 0.5;  // Animation frequency in Hz
+    
+    // Back circles (same for both left and right stimuli)
+    const BACK_MIDPOINT_CM = 45.0;  // Center distance of back circles
+    const BACK_RANGE_CM = 10.0;     // Total movement range (±5cm from midpoint)
+    
+    // Left front circle
+    const LEFT_FRONT_MIDPOINT_CM = 35.0;  // Center distance of left front circle
+    const LEFT_FRONT_RANGE_CM = 10.0;     // Total movement range (±5cm from midpoint)
+    
+    // Right front circle - same as left (maintaining fixed distance between circles)
+    const RIGHT_FRONT_MIDPOINT_CM = 35.0;  // Same as left front circle
+    const RIGHT_FRONT_RANGE_CM = 10.0;     // Same as left front circle
+    
+    // ========================================
+    // DERIVED PARAMETERS (calculated from above)
+    // ========================================
+    
+    const SHIFT_L = -IPD_CM / 2;
+    const SHIFT_R = +IPD_CM / 2;
+    
+    const BACK_AMP = BACK_RANGE_CM / 2;
+    const BACK_CENTER = BACK_MIDPOINT_CM;
+    const BACK_MAX_DIST = BACK_CENTER + BACK_AMP;  // Farthest point
+    const BACK_MIN_DIST = BACK_CENTER - BACK_AMP;  // Nearest point
+    
+    const LEFT_FRONT_AMP = LEFT_FRONT_RANGE_CM / 2;
+    const LEFT_FRONT_CENTER = LEFT_FRONT_MIDPOINT_CM;
+    
+    // Right front circle parameters (same as left)
+    const RIGHT_FRONT_AMP = RIGHT_FRONT_RANGE_CM / 2;
+    const RIGHT_FRONT_CENTER = RIGHT_FRONT_MIDPOINT_CM;
+    
+    // ========================================
+
+    const SCREEN_SHIFT_CM = 10.0;
+    const SCREEN_SHIFT_CM_RIGHT = -10.0;
+
+    // Left stimulus parameters
+    const LEFT_SMALL_R_BASE = 2.5;
+    const LEFT_LARGE_R_BASE = 6.5;
+    const LEFT_REF_FRONT_DIST = 40.0;
+    const LEFT_REF_BACK_DIST  = 50.0;
+
+    // Right stimulus parameters
+    const RIGHT_SMALL_R_BASE = 2.5;
+    const RIGHT_LARGE_R_BASE = 6.5;
+    const RIGHT_REF_FRONT_DIST = 40.0;
+    const RIGHT_REF_BACK_DIST  = 50.0;
+
+    const BORDER_SCREEN_PX = 20;
+    const DOT_SIZE_PX      = 5;
+    const RHO_DOTS         = 44;
+    
+    // Reference circles parameters
+    const REF_CIRCLE_RADIUS_CM = 1.25;  // Half the front circle radius (2.5cm / 2)
+    const REF_CIRCLE_X_OFFSET_CM = 0;  // Centered horizontally
+    const REF_CIRCLE_VERTICAL_SPACING_CM = 3.5;  // Vertical spacing between circles
+
+    function cssPPI(){
+      const d=document.createElement('div'); d.style.width='1in'; d.style.position='absolute'; d.style.visibility='hidden';
+      document.body.appendChild(d); const p=d.offsetWidth||96; d.remove(); return p;
+    }
+    function estimateCanvasCM(){
+      const ppi = cssPPI();
+      const pxW = window.innerWidth, pxH = window.innerHeight;
+      const inW = pxW/ppi, inH = pxH/ppi; const CM = 2.54;
+      return { w: inW*CM, h: inH*CM, pxW, pxH, ppi, cmPerPx: (1/ppi)*2.54 };
+    }
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+
+    // Create two separate scenes
+    const sceneLeft = new THREE.Scene();
+    const sceneRight = new THREE.Scene();
+
+    function makeDotTexture(size=64){
+      const c=document.createElement('canvas'); c.width=c.height=size; const g=c.getContext('2d');
+      g.clearRect(0,0,size,size);
+      const cx=size/2, cy=size/2, r=size*0.45;
+      const grd=g.createRadialGradient(cx,cy,0, cx,cy,r);
+      grd.addColorStop(0,'rgba(255,255,255,1)');
+      grd.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=grd; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill();
+      const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+      return t;
+    }
+    const dotTexture = makeDotTexture();
+
+    function buildCircleUnit(dotCount, withInnerCircle=false, withRing=true){
+      const grp = new THREE.Group();
+      const ringGeo = new THREE.RingGeometry(0.9, 1.0, 256, 1);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 1.0 });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.visible = withRing;
+      grp.add(ring);
+
+      const maskGeo = new THREE.CircleGeometry(0.9, 256);
+      const maskMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+      maskMat.colorWrite = false;
+      const mask = new THREE.Mesh(maskGeo, maskMat);
+      mask.visible = withRing;
+      grp.add(mask);
+
+      const pos = new Float32Array(dotCount * 3);
+      for(let i=0;i<dotCount;i++){
+        const u=Math.random(), v=Math.random();
+        const r=Math.sqrt(u), th=2*Math.PI*v;
+        pos[3*i]   = r*Math.cos(th);
+        pos[3*i+1] = r*Math.sin(th);
+        pos[3*i+2] = 0;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+      const pm = new THREE.PointsMaterial({
+        map: dotTexture,
+        size: DOT_SIZE_PX,
+        sizeAttenuation: false,
+        transparent: true,
+        depthWrite: false
+      });
+      const dots = new THREE.Points(g, pm);
+      dots.renderOrder = 1;
+      grp.add(dots);
+
+      let innerCircle = null;
+      if (withInnerCircle) {
+        const innerCircleGeo = new THREE.CircleGeometry(1.0, 256);
+        const innerCircleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        innerCircle = new THREE.Mesh(innerCircleGeo, innerCircleMat);
+        innerCircle.renderOrder = 3; // Above ring
+        grp.add(innerCircle);
+      }
+
+      mask.renderOrder = 0;
+      ring.renderOrder = 2;
+      grp.userData = { ring, mask, dots, innerCircle, lastOuter: -1, lastInner: -1 };
+      return grp;
+    }
+
+    let spec = estimateCanvasCM();
+    function computeFOV(){ return 2*Math.atan((spec.h/2)/VIEW_DIST_CM)*180/Math.PI; }
+    
+    // Create all six cameras (two stereo pairs for left/right stimuli, one stereo pair for center)
+    const camL = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camR = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camL2 = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camR2 = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camL3 = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    const camR3 = new THREE.PerspectiveCamera(computeFOV(), spec.w/spec.h, 0.1, 2000);
+    
+    function setPoseAndFrustum(cam, eyeXcm, screenShift){
+      cam.position.set(eyeXcm, 0, VIEW_DIST_CM);
+      const n=cam.near, f=cam.far;
+      const halfW = spec.w*0.5, halfH = spec.h*0.5;
+      const top = (+halfH) * (n/VIEW_DIST_CM);
+      const bottom = (-halfH) * (n/VIEW_DIST_CM);
+      const left  = (-halfW - eyeXcm + screenShift) * (n/VIEW_DIST_CM);
+      const right = ( +halfW - eyeXcm + screenShift) * (n/VIEW_DIST_CM);
+      const m=new THREE.Matrix4();
+      const x = 2*n/(right-left), y=2*n/(top-bottom);
+      const a = (right+left)/(right-left), b=(top+bottom)/(top-bottom);
+      const c = -(f+n)/(f-n), d = -2*f*n/(f-n);
+      m.set(x,0,a,0,  0,y,b,0,  0,0,c,d,  0,0,-1,0);
+      cam.projectionMatrix.copy(m);
+      cam.projectionMatrixInverse.copy(m).invert();
+      cam.updateMatrixWorld(true);
+    }
+    
+    // Set up all six cameras
+    setPoseAndFrustum(camL, SHIFT_L, SCREEN_SHIFT_CM);
+    setPoseAndFrustum(camR, SHIFT_R, SCREEN_SHIFT_CM);
+    setPoseAndFrustum(camL2, SHIFT_L, SCREEN_SHIFT_CM_RIGHT);
+    setPoseAndFrustum(camR2, SHIFT_R, SCREEN_SHIFT_CM_RIGHT);
+    setPoseAndFrustum(camL3, SHIFT_L, 0);  // Centered, no screen shift
+    setPoseAndFrustum(camR3, SHIFT_R, 0);  // Centered, no screen shift
+
+    const borderScreenCm = spec.cmPerPx * BORDER_SCREEN_PX;
+    
+    // Left stimulus circles
+    const leftInnerSmallBase = Math.max(0, LEFT_SMALL_R_BASE - borderScreenCm * (LEFT_REF_FRONT_DIST/VIEW_DIST_CM));
+    const leftInnerLargeBase = Math.max(0, LEFT_LARGE_R_BASE - borderScreenCm * (LEFT_REF_BACK_DIST/VIEW_DIST_CM));
+    const LEFT_DOTS_SMALL = Math.max(50, Math.round(RHO_DOTS * Math.PI * leftInnerSmallBase * leftInnerSmallBase));
+    const LEFT_DOTS_LARGE = Math.max(50, Math.round(RHO_DOTS * Math.PI * leftInnerLargeBase * leftInnerLargeBase));
+    
+    const leftSmall = buildCircleUnit(LEFT_DOTS_SMALL);
+    const leftLarge = buildCircleUnit(LEFT_DOTS_LARGE);
+    sceneLeft.add(leftLarge);
+    sceneLeft.add(leftSmall);
+
+    // Right stimulus circles
+    const rightInnerSmallBase = Math.max(0, RIGHT_SMALL_R_BASE - borderScreenCm * (RIGHT_REF_FRONT_DIST/VIEW_DIST_CM));
+    const rightInnerLargeBase = Math.max(0, RIGHT_LARGE_R_BASE - borderScreenCm * (RIGHT_REF_BACK_DIST/VIEW_DIST_CM));
+    const RIGHT_DOTS_SMALL = Math.max(50, Math.round(RHO_DOTS * Math.PI * rightInnerSmallBase * rightInnerSmallBase));
+    const RIGHT_DOTS_LARGE = Math.max(50, Math.round(RHO_DOTS * Math.PI * rightInnerLargeBase * rightInnerLargeBase));
+    
+    const rightSmall = buildCircleUnit(RIGHT_DOTS_SMALL);
+    const rightLarge = buildCircleUnit(RIGHT_DOTS_LARGE);
+    sceneRight.add(rightLarge);
+    sceneRight.add(rightSmall);
+    
+    // Create a third scene for centered reference circles
+    const sceneCenter = new THREE.Scene();
+    const refCircles = [];
+    for (let i = 0; i < 5; i++) {
+      const refCircle = buildCircleUnit(200, false, false); // 200 dots, no inner circle, no ring
+      sceneCenter.add(refCircle);
+      refCircles.push(refCircle);
+    }
+
+    const BORDER_ALPHA_RAD = 2 * Math.atan( (borderScreenCm*0.5) / VIEW_DIST_CM );
+
+    function updateRingAndMask(grp, outerR, innerR){
+      const eps = 1e-3;
+      if (Math.abs(outerR - grp.userData.lastOuter) < eps && Math.abs(innerR - grp.userData.lastInner) < eps) return;
+      grp.userData.lastOuter = outerR; grp.userData.lastInner = innerR;
+
+      grp.remove(grp.userData.ring);
+      grp.remove(grp.userData.mask);
+      grp.userData.ring.geometry.dispose();
+      grp.userData.mask.geometry.dispose();
+
+      const ringGeo = new THREE.RingGeometry(innerR, outerR, 384, 1);
+      const ring = new THREE.Mesh(ringGeo, grp.userData.ring.material);
+      ring.renderOrder = 2;
+      grp.userData.ring = ring; grp.add(ring);
+
+      const maskGeo = new THREE.CircleGeometry(innerR, 384);
+      const mask = new THREE.Mesh(maskGeo, grp.userData.mask.material);
+      mask.renderOrder = 0;
+      grp.userData.mask = mask; grp.add(mask);
+    }
+
+    function makeRT(){
+      const s=new THREE.Vector2(); renderer.getDrawingBufferSize(s);
+      return new THREE.WebGLRenderTarget(s.x, s.y, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat });
+    }
+    
+    // Create render targets for all six cameras
+    let rtL = makeRT(), rtR = makeRT(), rtL2 = makeRT(), rtR2 = makeRT(), rtL3 = makeRT(), rtR3 = makeRT();
+    
+    const fsScene = new THREE.Scene();
+    const fsCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+    const fsMat = new THREE.ShaderMaterial({
+      uniforms:{
+        texL:{value:rtL.texture}, 
+        texR:{value:rtR.texture},
+        texL2:{value:rtL2.texture},
+        texR2:{value:rtR2.texture},
+        texL3:{value:rtL3.texture},
+        texR3:{value:rtR3.texture}
+      },
+      vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+      fragmentShader:`precision highp float; varying vec2 vUv; 
+        uniform sampler2D texL, texR, texL2, texR2, texL3, texR3;
+        void main(){ 
+          vec3 L=texture2D(texL,vUv).rgb; 
+          vec3 R=texture2D(texR,vUv).rgb;
+          vec3 L2=texture2D(texL2,vUv).rgb;
+          vec3 R2=texture2D(texR2,vUv).rgb;
+          vec3 L3=texture2D(texL3,vUv).rgb;
+          vec3 R3=texture2D(texR3,vUv).rgb;
+          // Combine first pair (left stimulus, left shifted) in red-cyan
+          vec3 col1=vec3(L.r,0.0,R.b);
+          // Combine second pair (right stimulus, right shifted) in red-cyan
+          vec3 col2=vec3(L2.r,0.0,R2.b);
+          // Combine third pair (center reference circles, no shift) in red-cyan
+          vec3 col3=vec3(L3.r,0.0,R3.b);
+          // Add all three stereo pairs
+          vec3 col = (col1 + col2 + col3);
+          gl_FragColor=vec4(col,1.0); 
+        }`,
+      depthTest:false, depthWrite:false
+    });
+    fsScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), fsMat));
+
+    const TWO_PI=Math.PI*2;
+    function distToZ(d){ return VIEW_DIST_CM - d; }
+    let t0=performance.now();
+
+    function animate(){
+      requestAnimationFrame(animate);
+      const t=(performance.now()-t0)*0.001;
+      const ph=TWO_PI*FREQ_HZ*t;
+
+      // LEFT STIMULUS
+      const leftFrontDist = LEFT_FRONT_CENTER + LEFT_FRONT_AMP*Math.cos(ph);
+      const leftBackDist  = BACK_CENTER  + BACK_AMP*Math.cos(ph);
+
+      leftSmall.position.z = distToZ(leftFrontDist);
+      leftLarge.position.z = distToZ(leftBackDist);
+
+      const leftOuterR_small = LEFT_SMALL_R_BASE * (leftFrontDist/LEFT_REF_FRONT_DIST);
+      const leftOuterR_large = LEFT_LARGE_R_BASE * (leftBackDist /LEFT_REF_BACK_DIST);
+
+      const leftBorder_small = 2 * leftFrontDist * Math.tan(BORDER_ALPHA_RAD/2);
+      const leftBorder_large = 2 * leftBackDist  * Math.tan(BORDER_ALPHA_RAD/2);
+
+      const leftInnerR_small = Math.max(0, leftOuterR_small - leftBorder_small);
+      const leftInnerR_large = Math.max(0, leftOuterR_large - 2 * leftBorder_large);  // Move inner edge inward by one extra border width
+
+      updateRingAndMask(leftSmall, leftOuterR_small, leftInnerR_small);
+      updateRingAndMask(leftLarge, leftOuterR_large - leftBorder_large, leftInnerR_large);  // Move outer edge inward by one border width
+
+      leftSmall.userData.dots.scale.set(leftInnerR_small, leftInnerR_small, 1);
+      leftLarge.userData.dots.scale.set(leftOuterR_large, leftOuterR_large, 1);  // Dots stay at full outer radius
+
+      // RIGHT STIMULUS - Fixed physical size (angular size changes with distance)
+      const rightFrontDist = RIGHT_FRONT_CENTER + RIGHT_FRONT_AMP*Math.cos(ph);
+      const rightBackDist  = BACK_CENTER  + BACK_AMP*Math.cos(ph);
+
+      rightSmall.position.z = distToZ(rightFrontDist);
+      rightLarge.position.z = distToZ(rightBackDist);
+
+      // Fixed physical size - scaled to maximum angular size (at minimum distance)
+      const rightMinFrontDist = RIGHT_FRONT_CENTER - RIGHT_FRONT_AMP;
+      const rightMinBackDist = BACK_CENTER - BACK_AMP;
+      const rightOuterR_small = RIGHT_SMALL_R_BASE * (rightMinFrontDist/RIGHT_REF_FRONT_DIST);
+      const rightOuterR_large = RIGHT_LARGE_R_BASE * (rightMinBackDist/RIGHT_REF_BACK_DIST);
+
+      // Fixed border width (calculated at minimum distance for maximum width)
+      const rightBorder_small = 2 * rightMinFrontDist * Math.tan(BORDER_ALPHA_RAD/2);
+      const rightBorder_large = 2 * rightMinBackDist * Math.tan(BORDER_ALPHA_RAD/2);
+
+      const rightInnerR_small = Math.max(0, rightOuterR_small - rightBorder_small);
+      const rightInnerR_large = Math.max(0, rightOuterR_large - 2 * rightBorder_large);  // Move inner edge inward by one extra border width
+
+      updateRingAndMask(rightSmall, rightOuterR_small, rightInnerR_small);
+      updateRingAndMask(rightLarge, rightOuterR_large - rightBorder_large, rightInnerR_large);  // Move outer edge inward by one border width
+
+      rightSmall.userData.dots.scale.set(rightInnerR_small, rightInnerR_small, 1);
+      rightLarge.userData.dots.scale.set(rightOuterR_large, rightOuterR_large, 1);  // Dots stay at full outer radius
+      
+      // Update five centered reference circles
+      // Distances: [0]=top (back max), [1]=2nd (back min=front max), [2]=middle (front min), [3]=4th (back min=front max), [4]=bottom (back max)
+      const backMaxDist = BACK_CENTER + BACK_AMP;
+      const backMinDist = BACK_CENTER - BACK_AMP;
+      const frontMinDist = LEFT_FRONT_CENTER - LEFT_FRONT_AMP;
+      
+      const refDistances = [backMaxDist, backMinDist, frontMinDist, backMinDist, backMaxDist];
+      
+      // Calculate vertical positions to appear evenly spaced on screen
+      // Screen spacing should be constant, so 3D spacing scales with distance
+      const screenSpacing = REF_CIRCLE_VERTICAL_SPACING_CM;
+      const refYPositions = [
+        2 * screenSpacing * (refDistances[0] / VIEW_DIST_CM),  // Top
+        1 * screenSpacing * (refDistances[1] / VIEW_DIST_CM),  // Second
+        0,                                                       // Middle (centered)
+        -1 * screenSpacing * (refDistances[3] / VIEW_DIST_CM), // Fourth
+        -2 * screenSpacing * (refDistances[4] / VIEW_DIST_CM)  // Bottom
+      ];
+      
+      for (let i = 0; i < 5; i++) {
+        const dist = refDistances[i];
+        refCircles[i].position.x = REF_CIRCLE_X_OFFSET_CM;
+        refCircles[i].position.y = refYPositions[i];
+        refCircles[i].position.z = distToZ(dist);
+        
+        // Scale to maintain constant angular size
+        const refOuterR = REF_CIRCLE_RADIUS_CM * (dist / VIEW_DIST_CM);
+        
+        // Scale dots to fill the full outer radius (no ring, no mask)
+        refCircles[i].userData.dots.scale.set(refOuterR, refOuterR, 1);
+      }
+
+      // Render left stimulus from first stereo pair
+      renderer.setRenderTarget(rtL); renderer.render(sceneLeft, camL);
+      renderer.setRenderTarget(rtR); renderer.render(sceneLeft, camR);
+      
+      // Render right stimulus from second stereo pair
+      renderer.setRenderTarget(rtL2); renderer.render(sceneRight, camL2);
+      renderer.setRenderTarget(rtR2); renderer.render(sceneRight, camR2);
+      
+      // Render centered reference circles from third stereo pair
+      renderer.setRenderTarget(rtL3); renderer.render(sceneCenter, camL3);
+      renderer.setRenderTarget(rtR3); renderer.render(sceneCenter, camR3);
+      
+      renderer.setRenderTarget(null); renderer.render(fsScene, fsCam);
+    }
+    animate();
+
+    window.addEventListener('resize', ()=>{
+      spec = estimateCanvasCM();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      
+      // Update all six cameras
+      camL.fov=computeFOV(); camL.aspect=spec.w/spec.h; camL.updateProjectionMatrix();
+      camR.fov=computeFOV(); camR.aspect=spec.w/spec.h; camR.updateProjectionMatrix();
+      camL2.fov=computeFOV(); camL2.aspect=spec.w/spec.h; camL2.updateProjectionMatrix();
+      camR2.fov=computeFOV(); camR2.aspect=spec.w/spec.h; camR2.updateProjectionMatrix();
+      camL3.fov=computeFOV(); camL3.aspect=spec.w/spec.h; camL3.updateProjectionMatrix();
+      camR3.fov=computeFOV(); camR3.aspect=spec.w/spec.h; camR3.updateProjectionMatrix();
+      
+      setPoseAndFrustum(camL, SHIFT_L, SCREEN_SHIFT_CM);
+      setPoseAndFrustum(camR, SHIFT_R, SCREEN_SHIFT_CM);
+      setPoseAndFrustum(camL2, SHIFT_L, SCREEN_SHIFT_CM_RIGHT);
+      setPoseAndFrustum(camR2, SHIFT_R, SCREEN_SHIFT_CM_RIGHT);
+      setPoseAndFrustum(camL3, SHIFT_L, 0);
+      setPoseAndFrustum(camR3, SHIFT_R, 0);
+      
+      // Dispose and recreate all render targets
+      rtL.dispose(); rtR.dispose(); rtL2.dispose(); rtR2.dispose(); rtL3.dispose(); rtR3.dispose();
+      rtL = makeRT(); rtR = makeRT(); rtL2 = makeRT(); rtR2 = makeRT(); rtL3 = makeRT(); rtR3 = makeRT();
+      
+      fsMat.uniforms.texL.value = rtL.texture; 
+      fsMat.uniforms.texR.value = rtR.texture;
+      fsMat.uniforms.texL2.value = rtL2.texture;
+      fsMat.uniforms.texR2.value = rtR2.texture;
+      fsMat.uniforms.texL3.value = rtL3.texture;
+      fsMat.uniforms.texR3.value = rtR3.texture;
+    });
+  </script>
+</body>
+</html>
