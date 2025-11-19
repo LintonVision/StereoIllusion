@@ -65,8 +65,13 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // Fix canvas size at initialization
+    const FIXED_WIDTH = window.innerWidth;
+    const FIXED_HEIGHT = window.innerHeight;
+    renderer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.domElement.style.transformOrigin = 'top left';
     document.body.appendChild(renderer.domElement);
 
     // Create two separate scenes
@@ -316,28 +321,12 @@
     animate();
 
     window.addEventListener('resize', ()=>{
-      spec = estimateCanvasCM();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      // Scale the canvas proportionally instead of recalculating
+      const scaleX = window.innerWidth / FIXED_WIDTH;
+      const scaleY = window.innerHeight / FIXED_HEIGHT;
+      const scale = Math.min(scaleX, scaleY);
       
-      // Update all four cameras
-      camL.fov=computeFOV(); camL.aspect=spec.w/spec.h; camL.updateProjectionMatrix();
-      camR.fov=computeFOV(); camR.aspect=spec.w/spec.h; camR.updateProjectionMatrix();
-      camL2.fov=computeFOV(); camL2.aspect=spec.w/spec.h; camL2.updateProjectionMatrix();
-      camR2.fov=computeFOV(); camR2.aspect=spec.w/spec.h; camR2.updateProjectionMatrix();
-      
-      setPoseAndFrustum(camL, SHIFT_L, SCREEN_SHIFT_LEFT);
-      setPoseAndFrustum(camR, SHIFT_R, SCREEN_SHIFT_LEFT);
-      setPoseAndFrustum(camL2, SHIFT_L, SCREEN_SHIFT_RIGHT);
-      setPoseAndFrustum(camR2, SHIFT_R, SCREEN_SHIFT_RIGHT);
-      
-      // Dispose and recreate all render targets
-      rtL.dispose(); rtR.dispose(); rtL2.dispose(); rtR2.dispose();
-      rtL = makeRT(); rtR = makeRT(); rtL2 = makeRT(); rtR2 = makeRT();
-      
-      fsMat.uniforms.texL.value = rtL.texture; 
-      fsMat.uniforms.texR.value = rtR.texture;
-      fsMat.uniforms.texL2.value = rtL2.texture;
-      fsMat.uniforms.texR2.value = rtR2.texture;
+      renderer.domElement.style.transform = `scale(${scale})`;
     });
   </script>
 </body>
