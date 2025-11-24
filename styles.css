@@ -1,0 +1,140 @@
+/* css styles */
+
+#TOC {
+  display: none;
+}
+
+h2 {
+  border-bottom: none;
+}
+
+table {
+  border: none !important;
+}
+
+table td {
+  border: none !important;
+}
+
+table tr {
+  border: none !important;
+}
+
+tbody {
+  border: none !important;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.anchorjs-link,
+a.anchor-section {
+  display: none !important;
+}
+
+h2 {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Or for all headers */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.navbar-brand {
+  display: none !important;
+}
+
+.navbar-title {
+  display: none !important;
+}
+
+.quarto-title {
+  display: none !important;
+}
+
+.sidebar-title {
+  display: none !important;
+}
+
+.sidebar .title {
+  display: none !important;
+}
+
+.spacer-1p {
+  height: 1em;
+}
+
+.spacer-2p {
+  height: 2em;
+}
+
+td {
+  border-bottom: none;
+}
+
+.video-table {
+  width: 100%;
+  border: 0;
+  border-spacing: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.video-table td {
+  padding: 0;
+  margin: 0;
+  border-bottom: none;
+}
+
+.video-container {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+
+.video-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.video-table,
+.video-table tbody,
+.video-table tr,
+.video-table td {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.column-margin {
+  position: sticky;
+  top: 50px;
+}
+
+@media (max-width: 1200px) {
+  .column-margin {
+    display: none;
+  }
+}
+
+.column-margin {
+  margin-top: 50px;
+}
